@@ -1,11 +1,11 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 public class PlayerShootingController : MonoBehaviour
 {
     public Transform shootOrigin;          // usually Main Camera
     public WeaponBase currentWeapon;
 
-    private FirstPersonPlayerController movement; // for input access
+    private FirstPersonPlayerController movement;
     private float nextFireTime;
 
     void Awake()
@@ -21,16 +21,32 @@ public class PlayerShootingController : MonoBehaviour
         if(movement == null || currentWeapon == null)
             return;
 
-        var input = movement.GetInput(); // we’ll expose this cleanly
+        var input = movement.GetInput();
 
-        bool wantsFire =
-            input.FirePressed ||
-            (input.FireHeld && currentWeapon.fireRate > 0f);
+        // Reload should work even when you're not firing
+        if(input.ReloadPressed)
+            currentWeapon.Reload();
 
-        if(!wantsFire) return;
+        // Decide if we WANT to attempt a shot this frame
+        bool wantsShotThisFrame;
 
-        float interval = 1f / currentWeapon.fireRate;
-        if(Time.time < nextFireTime) return;
+        if(currentWeapon.isAutomatic)
+            wantsShotThisFrame = input.FireHeld || input.FirePressed; // held drives auto
+        else
+            wantsShotThisFrame = input.FirePressed; // semi-auto ignores held
+
+        if(!wantsShotThisFrame)
+        {
+            currentWeapon.OnFireReleased(); // stops loop audio if a future weapon uses it
+            return;
+        }
+
+        // Rate limit
+        float rate = Mathf.Max(0.01f, currentWeapon.fireRate);
+        float interval = 1f / rate;
+
+        if(Time.time < nextFireTime)
+            return;
 
         nextFireTime = Time.time + interval;
         currentWeapon.Fire(shootOrigin);

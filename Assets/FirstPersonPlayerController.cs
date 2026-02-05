@@ -1,4 +1,4 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 #if UNITY_SWITCH && !UNITY_EDITOR
 using nn.hid;
@@ -20,6 +20,8 @@ public class FirstPersonPlayerController : MonoBehaviour
 
         bool FirePressed { get; }
         bool FireHeld { get; }
+
+        bool ReloadPressed { get; }
     }
 
     // -------- PC / Editor input (fast + reliable) --------
@@ -31,19 +33,20 @@ public class FirstPersonPlayerController : MonoBehaviour
         public bool JumpHeld { get; private set; }
         public bool SprintHeld { get; private set; }
 
-       public bool FirePressed { get; private set; }
-       public bool FireHeld { get; private set; }
+        public bool FirePressed { get; private set; }
+        public bool FireHeld { get; private set; }
+
+        public bool ReloadPressed { get; private set; }
 
         public void Initialize()
         {
-            // Optional: lock cursor for FPS testing in editor
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }
 
         public void Tick()
         {
-            // Old Input Manager axes (works instantly in most projects)
+            // Old Input Manager axes
             float mx = Input.GetAxisRaw("Horizontal");
             float my = Input.GetAxisRaw("Vertical");
             Move = new Vector2(mx, my);
@@ -58,6 +61,7 @@ public class FirstPersonPlayerController : MonoBehaviour
 
             FirePressed = Input.GetMouseButtonDown(0);
             FireHeld = Input.GetMouseButton(0);
+            ReloadPressed = Input.GetKeyDown(KeyCode.R);
         }
     }
 
@@ -70,14 +74,14 @@ public class FirstPersonPlayerController : MonoBehaviour
         private NpadState npadState = new NpadState();
         private bool updatePadState;
 
-        // cached values we expose
         public Vector2 Move { get; private set; }
         public Vector2 Look { get; private set; }
         public bool JumpPressed { get; private set; }
         public bool JumpHeld { get; private set; }
         public bool SprintHeld { get; private set; }
-         public bool FirePressed { get; private set; }
-       public bool FireHeld { get; private set; }
+        public bool FirePressed { get; private set; }
+        public bool FireHeld { get; private set; }
+        public bool ReloadPressed { get; private set; }
 
         public void Initialize()
         {
@@ -90,7 +94,7 @@ public class FirstPersonPlayerController : MonoBehaviour
         {
             updatePadState = UpdatePadState();
 
-            if(!updatePadState)
+            if (!updatePadState)
             {
                 Move = Vector2.zero;
                 Look = Vector2.zero;
@@ -99,24 +103,30 @@ public class FirstPersonPlayerController : MonoBehaviour
                 SprintHeld = false;
                 FirePressed = false;
                 FireHeld = false;
+                ReloadPressed = false;
                 return;
             }
 
             // Sticks
             AnalogStickState lStick = npadState.analogStickL;
             AnalogStickState rStick = npadState.analogStickR;
+
+            // âœ… lStick drives Move
             Move = new Vector2(lStick.fx, lStick.fy);
+
+            // âœ… rStick drives Look
             Look = new Vector2(rStick.fx, rStick.fy);
 
-            // Buttons (defaults: A=jump, B=sprint; you can change mappings easily)
+            // Buttons
             JumpPressed = npadState.GetButtonDown(NpadButton.A);
             JumpHeld = npadState.GetButton(NpadButton.A);
 
-            // Sprint on B (or click LStick if you prefer: NpadButton.StickL)
             SprintHeld = npadState.GetButton(NpadButton.B);
 
             FirePressed = GetButtonDown(NpadButton.ZR);
             FireHeld = npadState.GetButton(NpadButton.ZR);
+
+            ReloadPressed = GetButtonDown(NpadButton.X);
         }
 
         private bool UpdatePadState()
@@ -125,10 +135,10 @@ public class FirstPersonPlayerController : MonoBehaviour
             NpadStyle handheldStyle = Npad.GetStyleSet(NpadId.Handheld);
             NpadState handheldState = npadState;
 
-            if(handheldStyle != NpadStyle.None)
+            if (handheldStyle != NpadStyle.None)
             {
                 Npad.GetState(ref handheldState, NpadId.Handheld, handheldStyle);
-                if(handheldState.buttons != NpadButton.None)
+                if (handheldState.buttons != NpadButton.None)
                 {
                     npadId = NpadId.Handheld;
                     npadStyle = handheldStyle;
@@ -141,10 +151,10 @@ public class FirstPersonPlayerController : MonoBehaviour
             NpadStyle no1Style = Npad.GetStyleSet(NpadId.No1);
             NpadState no1State = npadState;
 
-            if(no1Style != NpadStyle.None)
+            if (no1Style != NpadStyle.None)
             {
                 Npad.GetState(ref no1State, NpadId.No1, no1Style);
-                if(no1State.buttons != NpadButton.None)
+                if (no1State.buttons != NpadButton.None)
                 {
                     npadId = NpadId.No1;
                     npadStyle = no1Style;
@@ -154,13 +164,13 @@ public class FirstPersonPlayerController : MonoBehaviour
             }
 
             // Fall back to previous active id/style if still present
-            if((npadId == NpadId.Handheld) && (handheldStyle != NpadStyle.None))
+            if ((npadId == NpadId.Handheld) && (handheldStyle != NpadStyle.None))
             {
                 npadId = NpadId.Handheld;
                 npadStyle = handheldStyle;
                 npadState = handheldState;
             }
-            else if((npadId == NpadId.No1) && (no1Style != NpadStyle.None))
+            else if ((npadId == NpadId.No1) && (no1Style != NpadStyle.None))
             {
                 npadId = NpadId.No1;
                 npadStyle = no1Style;
@@ -177,39 +187,27 @@ public class FirstPersonPlayerController : MonoBehaviour
             return true;
         }
 
-        public bool GetButtonDown(NpadButton npadButton)
-	{
-	
-			// Use the cached state
-			if (updatePadState)
-			{
-				return npadState.GetButtonDown(npadButton);
-			}
-			else
-			{
-				return false;
-			}
-		
-	
-	}
+        private bool GetButtonDown(NpadButton npadButton)
+        {
+            if (updatePadState)
+                return npadState.GetButtonDown(npadButton);
 
-	public bool GetButtonUp(NpadButton npadButton)
-	{
-		
-			if (updatePadState)
-			{
-				return npadState.GetButtonUp(npadButton);
-			}
-			else
-			{
-				return false;
-	}
+            return false;
+        }
+
+        private bool GetButtonUp(NpadButton npadButton)
+        {
+            if (updatePadState)
+                return npadState.GetButtonUp(npadButton);
+
+            return false;
+        }
     }
 #endif
 
     // -------- Controller refs --------
     [Header("Refs")]
-    public Transform cameraPivot;              // assign your Camera transform
+    public Transform cameraPivot; // assign your Camera transform
     private CharacterController cc;
 
     // -------- Look --------
@@ -217,9 +215,17 @@ public class FirstPersonPlayerController : MonoBehaviour
     public float mouseSensitivity = 2.0f;      // PC feel
     public float stickSensitivity = 140.0f;    // degrees/sec feel (Switch)
     public bool invertY = false;
+
     [Range(0f, 0.35f)] public float stickDeadzone = 0.12f;
+
     public bool smoothLook = false;
     [Range(0f, 30f)] public float lookSmoothing = 14f;
+
+    [Header("Look Drift Kill (optional)")]
+    public bool enableLookCutoff = true;
+    [Range(0f, 0.5f)] public float stickLookCutoff = 0.18f; // JoyCons often need 0.18â€“0.25
+    [Range(0f, 0.2f)] public float mouseLookCutoff = 0.02f; // usually tiny / can be 0
+    public bool applyDeadzoneToMouse = false;
 
     // -------- Movement --------
     [Header("Movement")]
@@ -243,6 +249,7 @@ public class FirstPersonPlayerController : MonoBehaviour
     // -------- Internals --------
     private IPlayerInput input;
     private float pitch;
+    private float yaw;
     private Vector2 smoothedLook;
     private Vector3 velocity;                  // includes vertical
     private Vector3 planarVel;                 // horizontal smoothing
@@ -259,6 +266,8 @@ public class FirstPersonPlayerController : MonoBehaviour
         if(cameraPivot == null && Camera.main != null)
             cameraPivot = Camera.main.transform;
 
+        yaw = transform.eulerAngles.y;
+
 #if UNITY_SWITCH && !UNITY_EDITOR
         input = new SwitchNpadInput();
 #else
@@ -271,7 +280,6 @@ public class FirstPersonPlayerController : MonoBehaviour
     {
         input.Tick();
 
-        // Track jump buffer
         if(input.JumpPressed)
             lastJumpPressedTime = Time.time;
 
@@ -283,14 +291,25 @@ public class FirstPersonPlayerController : MonoBehaviour
     {
         Vector2 raw = input.Look;
 
-        // deadzone for sticks (mouse is usually tiny values but we won’t deadzone it aggressively)
+#if UNITY_SWITCH && !UNITY_EDITOR
+        // Stick: radial deadzone + hard cutoff
         raw = ApplyRadialDeadzone(raw, stickDeadzone);
 
-#if UNITY_SWITCH && !UNITY_EDITOR
-        // stick is already normalized-ish; scale to degrees per second
+        if (enableLookCutoff && raw.magnitude < stickLookCutoff)
+            raw = Vector2.zero;
+
         Vector2 lookDelta = raw * stickSensitivity * Time.deltaTime;
 #else
-        // mouse is already "per frame"; scale with sensitivity
+        // Mouse: usually avoid radial deadzone; use tiny per-axis cutoff instead
+        if(applyDeadzoneToMouse)
+            raw = ApplyRadialDeadzone(raw, stickDeadzone);
+
+        if(enableLookCutoff)
+        {
+            if(Mathf.Abs(raw.x) < mouseLookCutoff) raw.x = 0f;
+            if(Mathf.Abs(raw.y) < mouseLookCutoff) raw.y = 0f;
+        }
+
         Vector2 lookDelta = raw * mouseSensitivity;
 #endif
 
@@ -302,17 +321,16 @@ public class FirstPersonPlayerController : MonoBehaviour
             lookDelta = smoothedLook;
         }
 
-        // yaw rotates body
-        transform.Rotate(0f, lookDelta.x, 0f);
+        // âœ… Accumulate yaw instead of incremental Rotate (stops tiny pingpong)
+        yaw += lookDelta.x;
 
-        // pitch rotates camera
         pitch -= lookDelta.y;
         pitch = Mathf.Clamp(pitch, -89f, 89f);
 
+        transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+
         if(cameraPivot != null)
-            // IMPORTANT: camera is not parented, so set WORLD rotation.
-            // Yaw comes from the player, pitch from the camera.
-            cameraPivot.rotation = Quaternion.Euler(pitch, transform.eulerAngles.y, 0f);
+            cameraPivot.rotation = Quaternion.Euler(pitch, yaw, 0f);
     }
 
     private void HandleMovement()
@@ -322,15 +340,11 @@ public class FirstPersonPlayerController : MonoBehaviour
         if(grounded)
             lastGroundedTime = Time.time;
 
-        // Desired move in local space
         Vector2 move = input.Move;
 
-        // Kill tiny drift (especially on Switch sticks, but helps everywhere)
         if(move.magnitude < inputCutoff)
             move = Vector2.zero;
 
-        // Optional: apply same radial deadzone style as look for a nicer stick feel
-        // (safe for keyboard too; keyboard is already -1/0/1)
         move = ApplyRadialDeadzone(move, Mathf.Min(inputCutoff, 0.35f));
 
         if(move.sqrMagnitude > 1f)
@@ -356,23 +370,19 @@ public class FirstPersonPlayerController : MonoBehaviour
                 planarVel = Vector3.zero;
         }
 
-        // Jump: coyote + buffer
         bool canCoyote = (Time.time - lastGroundedTime) <= coyoteTime;
         bool buffered = (Time.time - lastJumpPressedTime) <= jumpBuffer;
 
         if(buffered && (grounded || canCoyote))
         {
-            // consume buffer
             lastJumpPressedTime = -999f;
             lastGroundedTime = -999f;
 
-            // v = sqrt(2gh) (gravity is negative)
             velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
 
-        // Gravity
         if(grounded && velocity.y < 0f)
-            velocity.y = -2f; // keeps you stuck to ground, avoids tiny “float”
+            velocity.y = -2f;
 
         velocity.y += gravity * Time.deltaTime;
 
